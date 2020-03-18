@@ -1,5 +1,5 @@
 import socket
-
+import re
 """
 GET /hypertext/WWW/TheProject.html HTTP/1.0
 HOST: http://info.cern.ch
@@ -20,55 +20,55 @@ User-Agent: Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)
 
 # i need to check if uri is just a (/) there must be a hostname included
 # curreltny i only support the get request for version 1.0
-
+#validate
+#Cache 200 responses
 
 
 def handle (buffer):
-    # for item in buffer.split(b'\r\n'):
-    #          print (item)
-    #          print("***********************")
     temp = buffer.split(b'\r\n')
     request_line = temp[0].decode()
     request_headers = []
     for item in temp[1:]:
         if len(item) !=0 :  
             request_headers.append(item.decode())
-    
-    # print(request_line)
-    # print("###################")
-    # print(request_headers)
-
+            
     ### CHECKING request line
     method, path, version = request_line.split()
 
-    ## meh need stuff
-    if method != "GET":
-        print( "Not Implemented (501) for valid HTTP methods other than GET")
-
     if method != "GET"  or version != "HTTP/1.0":
-        print("Bad Reqeuest (400)")
+        print( "Not Implemented (501) for valid HTTP methods other than GET")
     
-    host_header_flag = False
     if path[0] == "/":
+        host_header_flag = False
         for item in request_headers:
-            print(item)
             if item.find("Host:") != -1:
                 host_header_flag = True
                 url = item[6:] + path
-                print(url)
                 break
-        #print("there must be host name in hearder")
+        if host_header_flag:
+            print("bad request 400")
+    
+    
 
-    print(request_headers)
+    ### Validate request header
+
+    #[a-zA-z-]*\:.*
+    ### check if headers are  properly formatted
+    for item in request_headers:
+        if not (re.match(r'.*\: .*', item)):
+            print("header not properly formatted")
+
+
+
+    #print(request_headers)
+    main()
     
 
 
 
 def main():
 
-    print("Waiting for clients...")
-    client_socket, addr = server_socket.accept()
-    print("Client arrived...")
+    print("mainnnnnnnnnnnnn")
     buffer = b''
     while True:      
         data = client_socket.recv(50*1024)
@@ -103,4 +103,7 @@ if __name__ == "__main__":
     # Start listening, this makes the socket a "welcome" socket
     # that gives birth to a socket per each connecting client.
     server_socket.listen(10)
+    print("Waiting for clients...")
+    client_socket, addr = server_socket.accept()
+    print("Client arrived...")
     main()

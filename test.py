@@ -1,7 +1,11 @@
-import socket
+import re
 
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+print(re.match(r'[a-zA-z-]*\:.*', "Accept-Encoding: gzip, deflate"))
+print(re.match(r'.*\: .*', "Accept-Encoding: gzip, deflate"))
 
-server_addr = ("127.0.0.21", 2121)
-s.connect(server_addr)
 
+line = "Cats are smarter than dogs"
+
+matchObj = re.match(r'(.*) are (.*?) .*', line, re.M | re.I)
+
+print(matchObj)
