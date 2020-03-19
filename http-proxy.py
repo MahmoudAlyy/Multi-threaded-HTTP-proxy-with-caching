@@ -37,6 +37,9 @@ Accept-Encoding: gzip, deflate
 User-Agent: Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)
 
 
+GET http://example.com:4028/docs/index.html HTTP/1.1
+
+
 """
 
 """
@@ -105,17 +108,14 @@ A client MUST include a Host header field in all HTTP/1.1 request
 
 
 def validate (buffer):
-    #try:
+
     temp = buffer.split(b'\r\n')
     request_line = temp[0].decode()
     request_headers = []
     for item in temp[1:]:
         if len(item) !=0 :  
             request_headers.append(item.decode())
-    #except:
-    #    print("ERORR format enterd is worng")
-    #    return
-                
+
     ### CHECKING request line
     try:
         method, path, version = request_line.split()
@@ -129,12 +129,22 @@ def validate (buffer):
 
     ### if full path is provided will split to relative URL + Host header
     if path[0] != "/":
-        x = re.match(r'(https?:\/\/)?(.+?)(:.*)?(\/.*)', path)
-        # 2 host name, 3 prot number, 4 relative path
+        x = re.match(r'(https?:\/\/)?(.+?)(:[0-9]*)?(\/.*)', path)
+        #2 host name, 3 prot number, 4 relative path
+
+        # not used for now
+        #x = re.match(r'(https:\/\/)?(http:\/\/)?(.+?)(:[0-9]*)?(\/.*)', path)
+        # 1 https , 2 http , 3 host name , 4 port number , 5 relative path
+
+
         if x.group(2):
-            host_header = x.group(2)
+            host_name = x.group(2)
+            host_header = host_name
+        port = 80 # set default port
         if x.group(3):
-            host_header = host_header+x.group(3)
+            port = x.group(3)[1:]
+            host_header = host_name + x.group(3)
+
         relative_url = x.group(4)
 
         ### see if request header was provided if yes remove it
@@ -144,8 +154,8 @@ def validate (buffer):
                 break
 
         ### add the host header
-        temp_host_header = "Host: "+host_header
-        request_headers.append(temp_host_header)
+        host_header = "Host: "+host_header
+        request_headers.append(host_header)
         path = relative_url
 
     ### if realtive url is provided then there must exist a host header
@@ -158,33 +168,28 @@ def validate (buffer):
         if not host_header_flag:
             print("bad request 400 missing host name")
     
-
     ### Validate request header
     ### check if headers are  properly formatted
     for item in request_headers:
         if not (re.match(r'.*\: .*', item)):
             print("400 header not properly formatted")
 
+#    print(method,path,version)
+#    print(request_headers)
 
-    print(method,path,version)
-    print(request_headers)
+    space = b' '
+    crlf = b'\r\n'
+    packet = method.encode() + space + path.encode() + space + version.encode() + crlf
+    for item in request_headers:
+        packet = packet + item.encode() + crlf
+    packet = packet + crlf
+ 
+    return packet, host_name, port
 
-    packet = allgood(method, path, version, request_headers)
-    return packet
-    
 def error(error_code):
     pass
 
 
-def allgood(method, path, version, request_headers):
-    space = b' '
-    crlf = b'\r\n'
-    packet = method.encode() +space+ path.encode() + space + version.encode() + crlf
-    for item in request_headers:
-        packet = packet + item.encode() + crlf
-    packet = packet + crlf
-    #print(packet)
-    return packet
 
 def main():
 
@@ -196,8 +201,12 @@ def main():
         buffer = buffer + data
         if buffer.find(b'\r\n\r\n') > 0 :
             print(buffer)
-            packet =validate(buffer)
-            client_socket.send(packet)
+            packet, host, port = validate(buffer)
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.connect((host,port))
+            s.sendall(packet)
+            print(s.recv(6400))
+            s.close()
             buffer = b''
             print("***MAIN***")
 
