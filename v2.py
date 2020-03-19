@@ -17,7 +17,6 @@ Host:
 """
 
 
-
 """
 GET /docs/index.html HTTP/1.0
 Host: www.nowhere123.com
@@ -106,27 +105,25 @@ A client MUST include a Host header field in all HTTP/1.1 request
 """
 
 
-
-def validate (buffer):
+def validate(buffer):
 
     temp = buffer.split(b'\r\n')
     request_line = temp[0].decode()
     request_headers = []
     for item in temp[1:]:
-        if len(item) !=0 :  
+        if len(item) != 0:
             request_headers.append(item.decode())
 
     ### CHECKING request line
     try:
         method, path, version = request_line.split()
     except:
-        #print("ERORR format enterd is worng")
-        return None, None, None, "400 Bad Request"
+        print("ERORR format enterd is worng")
+        return
 
     #TODO want to seprate them so we can see both error messages
-    if not (method == "GET"  and version == "HTTP/1.1"):
-        #print( "Not Implemented (501) method or version")
-        return None, None, None, "501 Not Implemented"
+    if not (method == "GET" and version == "HTTP/1.1"):
+        print("Not Implemented (501) method or version")
 
     ### if full path is provided will split to relative URL + Host header
     if path[0] != "/":
@@ -137,11 +134,10 @@ def validate (buffer):
         #x = re.match(r'(https:\/\/)?(http:\/\/)?(.+?)(:[0-9]*)?(\/.*)', path)
         # 1 https , 2 http , 3 host name , 4 port number , 5 relative path
 
-
         if x.group(2):
             host_name = x.group(2)
             host_header = host_name
-        port = 80 # set default port
+        port = 80  # set default port
         if x.group(3):
             port = x.group(3)[1:]
             host_header = host_name + x.group(3)
@@ -167,65 +163,51 @@ def validate (buffer):
                 host_header_flag = True
                 break
         if not host_header_flag:
-            #print("bad request 400 missing host name")
-            return None, None, None, "400 Bad Request"
-    
+            print("bad request 400 missing host name")
+
     ### Validate request header
     ### check if headers are  properly formatted
     for item in request_headers:
         if not (re.match(r'.*\: .*', item)):
-            #print("400 header not properly formatted")
-            return None, None, None, "400 Bad Request"
+            print("400 header not properly formatted")
 
 #    print(method,path,version)
 #    print(request_headers)
 
     space = b' '
     crlf = b'\r\n'
-    packet = method.encode() + b'das'+ space + path.encode() + space + version.encode() + crlf
+    packet = method.encode() + space + path.encode() + \
+        space + version.encode() + crlf
     for item in request_headers:
         packet = packet + item.encode() + crlf
     packet = packet + crlf
- 
-    return packet, host_name, port,"0"
 
-def error_response( error_code,client_socket ):
-    error_msg = b'HTTP/1.1 ' + error_code.encode() + b'\r\n\r\n'
-    client_socket.sendall(error_msg)
-    return
+    return packet, host_name, port
 
 
-def ok_response( packet, host, port, client_socket ):
-     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-     s.connect((host, port))
-     s.sendall(packet)
-     response = s.recv(6400)
-     s.close()
-     print("RESPONSE : ", response)
-     client_socket.sendall(response)
-     return
-
+def error(error_code):
+    pass
 
 
 def main():
 
-    print("************************MAIN**********************************")
+    print("***MAIN***")
     buffer = b''
-    while True:   
-        #print("*IN WHILE*")   
+    while True:
+        #print("*IN WHILE*")
         data = client_socket.recv(50*1024)
         buffer = buffer + data
-        if buffer.find(b'\r\n\r\n') > 0 :
-            print("RECEIVED : ",buffer)
-            print(50*"~")
-            packet, host, port, error = validate(buffer)
-            if error != "0":
-                print("ERRRRRRRRRRRROEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEERRRRRRRRRRRR")
-                error_response(error,client_socket)
-            else:
-                ok_response(packet, host, port,client_socket)
+        if buffer.find(b'\r\n\r\n') > 0:
+            print(buffer)
+            packet, host, port = validate(buffer)
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.connect((host, port))
+            s.sendall(packet)
+            response = s.recv(6400)
+            client_socket.sendall(response)
+            s.close()
             buffer = b''
-            print("************************MAIN**********************************")
+            print("***MAIN***")
 
 
 # #string = data.decode()
