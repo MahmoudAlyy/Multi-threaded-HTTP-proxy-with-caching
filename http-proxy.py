@@ -13,6 +13,7 @@ Host:
 
 ### this works
 
+
 """
 
 
@@ -67,7 +68,7 @@ A client MUST include a Host header field in all HTTP/1.1 request
    Internet-based HTTP/1.1 servers MUST respond with a 400 (Bad Request)
    status code to any HTTP/1.1 request message which lacks a Host header
    field.
-""""
+"""
 
 
 # i need to check if uri is just a (/) there must be a hostname included
@@ -88,34 +89,66 @@ Send to remote server:
 GET / HTTP/1.0
 Host: www.princeton.edu
 (Additional client specified headers, if any...)
+
+Y? bec
+A client MUST include a Host header field in all HTTP/1.1 request
+   messages . If the requested URI does not include an Internet host
+   name for the service being requested, then the Host header field MUST
+   be given with an empty value. An HTTP/1.1 proxy MUST ensure that any
+   request message it forwards does contain an appropriate Host header
+   field that identifies the service being requested by the proxy. All
+   Internet-based HTTP/1.1 servers MUST respond with a 400 (Bad Request)
+   status code to any HTTP/1.1 request message which lacks a Host header
+   field.
 """
 
 
 
 def validate (buffer):
+    #try:
     temp = buffer.split(b'\r\n')
     request_line = temp[0].decode()
     request_headers = []
     for item in temp[1:]:
         if len(item) !=0 :  
             request_headers.append(item.decode())
-            
+    #except:
+    #    print("ERORR format enterd is worng")
+    #    return
+                
     ### CHECKING request line
-    method, path, version = request_line.split()
+    try:
+        method, path, version = request_line.split()
+    except:
+        print("ERORR format enterd is worng")
+        return
 
-    if method != "GET"  or version != "HTTP/1.0":
-        print( "Not Implemented (501)")
+    #TODO want to seprate them so we can see both error messages
+    if not (method == "GET"  and version == "HTTP/1.1"):
+        print( "Not Implemented (501) method or version")
 
     ### if full path is provided will split to relative URL + Host header
     if path[0] != "/":
-        x = re.match(r'https?:\/\/(.+?)(\/.*)', path)
-        host_header = x.group(1)
-        relative_url = x.group(2)
-        request_headers.append("Host: ",host_header)
+        x = re.match(r'(https?:\/\/)?(.+?)(:.*)?(\/.*)', path)
+        # 2 host name, 3 prot number, 4 relative path
+        if x.group(2):
+            host_header = x.group(2)
+        if x.group(3):
+            host_header = host_header+x.group(3)
+        relative_url = x.group(4)
+
+        ### see if request header was provided if yes remove it
+        for item in request_headers:
+            if item.find("Host:") != -1:
+                request_headers.remove(item)
+                break
+
+        ### add the host header
+        temp_host_header = "Host: "+host_header
+        request_headers.append(temp_host_header)
         path = relative_url
 
     ### if realtive url is provided then there must exist a host header
-    #if path[0] == "/":
     else:
         host_header_flag = False
         for item in request_headers:
@@ -136,24 +169,37 @@ def validate (buffer):
     print(method,path,version)
     print(request_headers)
 
-    return 
+    packet = allgood(method, path, version, request_headers)
+    return packet
     
 def error(error_code):
     pass
 
 
+def allgood(method, path, version, request_headers):
+    space = b' '
+    crlf = b'\r\n'
+    packet = method.encode() +space+ path.encode() + space + version.encode() + crlf
+    for item in request_headers:
+        packet = packet + item.encode() + crlf
+    packet = packet + crlf
+    #print(packet)
+    return packet
+
 def main():
 
-    print("mainnnnnnnnnnnnn")
+    print("***MAIN***")
     buffer = b''
     while True:   
-        print("*IN WHILE*")   
+        #print("*IN WHILE*")   
         data = client_socket.recv(50*1024)
         buffer = buffer + data
         if buffer.find(b'\r\n\r\n') > 0 :
-            #print(buffer)
-            validate(buffer)
-            main()
+            print(buffer)
+            packet =validate(buffer)
+            client_socket.send(packet)
+            buffer = b''
+            print("***MAIN***")
 
 
 # #string = data.decode()
