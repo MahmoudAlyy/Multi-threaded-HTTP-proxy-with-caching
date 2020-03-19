@@ -5,7 +5,17 @@ GET /hypertext/WWW/TheProject.html HTTP/1.0
 HOST: http://info.cern.ch
 
 
+GET / HTTP/1.1
+Host: www.google.com
+
+GET www.google.com/ HTTP/1.1
+Host: 
+
+### this works
+
 """
+
+
 
 """
 GET /docs/index.html HTTP/1.0
@@ -18,13 +28,71 @@ User-Agent: Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)
 
 """
 
+"""
+GET www.nowhere123.com/docs/index.html HTTP/1.0 
+Accept: image/gif, image/jpeg, */*
+Accept-Language: en-us
+Accept-Encoding: gzip, deflate
+User-Agent: Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)
+
+
+"""
+
+"""
+The absoluteURI form is REQUIRED when the request is being made to a proxy. The proxy is requested to forward the request or service it from a valid cache, and return the response. Note that the proxy MAY forward the request on to another proxy or directly to the server
+
+specified by the absoluteURI. In order to avoid request loops, a proxy MUST be able to recognize all of its server names, including any aliases, local variations, and the numeric IP address. An example Request-Line would be:
+
+       GET http://www.w3.org/pub/WWW/TheProject.html HTTP/1.1
+To allow for transition to absoluteURIs in all requests in future versions of HTTP, all HTTP/1.1 servers MUST accept the absoluteURI form in requests, even though HTTP/1.1 clients will only generate them in requests to proxies.
+
+The authority form is only used by the CONNECT method (section 9.9).
+
+The most common form of Request-URI is that used to identify a resource on an origin server or gateway. In this case the absolute path of the URI MUST be transmitted (see section 3.2.1, abs_path) as the Request-URI, and the network location of the URI (authority) MUST be transmitted in a Host header field. For example, a client wishing to retrieve the resource above directly from the origin server would create a TCP connection to port 80 of the host "www.w3.org" and send the lines:
+
+       GET /pub/WWW/TheProject.html HTTP/1.1
+       Host: www.w3.org
+followed by the remainder of the Request. Note that the absolute path cannot be empty; if none is present in the original URI, it MUST be given as "/" (the server root).
+"""
+
+
+#****
+"""
+A client MUST include a Host header field in all HTTP/1.1 request
+   messages . If the requested URI does not include an Internet host
+   name for the service being requested, then the Host header field MUST
+   be given with an empty value. An HTTP/1.1 proxy MUST ensure that any
+   request message it forwards does contain an appropriate Host header
+   field that identifies the service being requested by the proxy. All
+   Internet-based HTTP/1.1 servers MUST respond with a 400 (Bad Request)
+   status code to any HTTP/1.1 request message which lacks a Host header
+   field.
+""""
+
+
 # i need to check if uri is just a (/) there must be a hostname included
 # curreltny i only support the get request for version 1.0
 #validate
 #Cache 200 responses
+#need a try catch so to wont crash
+#main() validate() -> error() , packet(). then will need to add multiaccess
+#if input to proxy get ww.google,com:21/dasdasdas and output will be kza kza
+"""
+Accept from client:
+
+GET http://www.princeton.edu/ HTTP/1.0
+or
+GET / HTTP/1.0
+Host: www.princeton.edu
+Send to remote server:
+GET / HTTP/1.0
+Host: www.princeton.edu
+(Additional client specified headers, if any...)
+"""
 
 
-def handle (buffer):
+
+def validate (buffer):
     temp = buffer.split(b'\r\n')
     request_line = temp[0].decode()
     request_headers = []
@@ -36,48 +104,56 @@ def handle (buffer):
     method, path, version = request_line.split()
 
     if method != "GET"  or version != "HTTP/1.0":
-        print( "Not Implemented (501) for valid HTTP methods other than GET")
-    
-    if path[0] == "/":
+        print( "Not Implemented (501)")
+
+    ### if full path is provided will split to relative URL + Host header
+    if path[0] != "/":
+        x = re.match(r'https?:\/\/(.+?)(\/.*)', path)
+        host_header = x.group(1)
+        relative_url = x.group(2)
+        request_headers.append("Host: ",host_header)
+        path = relative_url
+
+    ### if realtive url is provided then there must exist a host header
+    #if path[0] == "/":
+    else:
         host_header_flag = False
         for item in request_headers:
             if item.find("Host:") != -1:
                 host_header_flag = True
-                url = item[6:] + path
                 break
-        if host_header_flag:
-            print("bad request 400")
-    
+        if not host_header_flag:
+            print("bad request 400 missing host name")
     
 
     ### Validate request header
-
-    #[a-zA-z-]*\:.*
     ### check if headers are  properly formatted
     for item in request_headers:
         if not (re.match(r'.*\: .*', item)):
-            print("header not properly formatted")
+            print("400 header not properly formatted")
 
 
+    print(method,path,version)
+    print(request_headers)
 
-    #print(request_headers)
-    main()
+    return 
     
-
+def error(error_code):
+    pass
 
 
 def main():
 
     print("mainnnnnnnnnnnnn")
     buffer = b''
-    while True:      
+    while True:   
+        print("*IN WHILE*")   
         data = client_socket.recv(50*1024)
         buffer = buffer + data
         if buffer.find(b'\r\n\r\n') > 0 :
             #print(buffer)
-            handle(buffer)
-            buffer = b''
-            ### still need to handle for sequetnil input
+            validate(buffer)
+            main()
 
 
 # #string = data.decode()
