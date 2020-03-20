@@ -133,13 +133,14 @@ def validate(buffer):
         #print("ERORR format enterd is worng")
         return None, None, None, "400 Bad Request"
 
-    #TODO want to seprate them so we can see both error messages
-    if not (method == "GET" and version == "HTTP/1.1"):
-        #print( "Not Implemented (501) method or version")
-        return None, None, None, "501 Not Implemented"
+    # #TODO want to seprate them so we can see both error messages
+    # if not (method == "GET" and version == "HTTP/1.1"):
+    #     #print( "Not Implemented (501) method or version")
+    #     return None, None, None, "501 Not Implemented"
 
+    #print(path)
     ### if full path is provided will split to relative URL + Host header
-    if path[0] != "/":
+    if path[0] != "/" and method == "GET":
         x = re.match(r'(https?:\/\/)?(.+?)(:[0-9]*)?(\/.*)', path)
         #2 host name, 3 prot number, 4 relative path
 
@@ -157,6 +158,26 @@ def validate(buffer):
 
         relative_url = x.group(4)
 
+    ### FOR COONECT?b'CONNECT
+    if path[0] != "/" and method == "CONNECT":
+        x = re.match(r'(https?:\/\/)?(.+?)(:[0-9]*)', path)
+        #2 host name, 3 prot number, 4 relative path
+
+        # not used for now
+        #x = re.match(r'(https:\/\/)?(http:\/\/)?(.+?)(:[0-9]*)?(\/.*)', path)
+        # 1 https , 2 http , 3 host name , 4 port number , 5 relative path
+
+        if x.group(2):
+            host_name = x.group(2)
+            host_header = host_name
+        port = 80  # set default port
+        if x.group(3):
+            port = x.group(3)[1:]
+            host_header = host_name + x.group(3)
+
+        #relative_url = x.group(4)
+
+
         ### see if request header was provided if yes remove it
         for item in request_headers:
             if item.find("Host:") != -1:
@@ -166,7 +187,8 @@ def validate(buffer):
         ### add the host header
         host_header = "Host: "+host_header
         request_headers.append(host_header)
-        path = relative_url
+        if method == "GET":
+            path = relative_url
 
     ### if realtive url is provided then there must exist a host header
     else:
@@ -215,11 +237,11 @@ def error_response(error_code, client_socket, client_address):
     size = str(len(html.encode()))
     crlf = b'\r\n'
 
-    error_msg = b'HTTP/1.1 ' + error_code.encode() + crlf + b'Content-Type: text/html; charset=UTF-8' + \
-        crlf + b'Content-Length: '+size.encode() + crlf + crlf
+    error_msg = b'HTTP/1.1 ' + error_code.encode() + crlf + b'Content-Type: text/html; charset=UTF-8' + crlf + b'Content-Length: '+size.encode() + crlf + crlf
 
     error_msg = error_msg + html.encode() + b'\n'
     print(error_msg)
+    
 
     ### TESTTTTTTTTTTTTT
     by = b'HTTP/1.1 404 Not Found\r\nContent-Type: text/html; charset=UTF-8\r\nReferrer-Policy: no-referrer\r\nContent-Length: 1567\r\nDate: Fri, 20 Mar 2020 15:34:45 GMT\r\n\r\n<!DOCTYPE html>\n<html lang=en>\n  <meta charset=utf-8>\n  <meta name=viewport content="initial-scale=1, minimum-scale=1, width=device-width">\n  <title>Error 404 (Not Found)!!1</title>\n  <style>\n    *{margin:0;padding:0}html,code{font:15px/22px arial,sans-serif}html{background:#fff;color:#222;padding:15px}body{margin:7% auto 0;max-width:390px;min-height:180px;padding:30px 0 15px}* > body{background:url(//www.google.com/images/errors/robot.png) 100% 5px no-repeat;padding-right:205px}p{margin:11px 0 22px;overflow:hidden}ins{color:#777;text-decoration:none}a img{border:0}@media screen and (max-width:772px){body{background:none;margin-top:0;max-width:none;padding-right:0}}#logo{background:url(//www.google.com/images/branding/googlelogo/1x/googlelogo_color_150x54dp.png) no-repeat;margin-left:-5px}@media only screen and (min-resolution:192dpi){#logo{background:url(//www.google.com/images/branding/googlelogo/2x/googlelogo_color_150x54dp.png) no-repeat 0% 0%/100% 100%;-moz-border-image:url(//www.google.com/images/branding/googlelogo/2x/googlelogo_color_150x54dp.png) 0}}@media only screen and (-webkit-min-device-pixel-ratio:2){#logo{background:url(//www.google.com/images/branding/googlelogo/2x/googlelogo_color_150x54dp.png) no-repeat;-webkit-background-size:100% 100%}}#logo{display:inline-block;height:54px;width:150px}\n  </style>\n  <a href=//www.google.com/><span id=logo aria-label=Google></span></a>\n  <p><b>404.</b> <ins>That\xe2\x80\x99s an error.</ins>\n  <p>The requested URL <code>/dsadas</code> was not found on this server.  <ins>That\xe2\x80\x99s all we know.</ins>\n'
@@ -230,6 +252,7 @@ def error_response(error_code, client_socket, client_address):
 
 
 def ok_response(packet, host, port, client_socket):
+     print(packet,host,port)
      s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
      s.connect((host, port))
      s.sendall(packet)
@@ -246,7 +269,7 @@ def main():
     buffer = b''
     while True:
         client_socket, client_address = server_socket.accept()
-        print("Client : ", client_address, " has arrived")
+        print("Client : ",client_address, " has arrived")
         #print("*IN WHILE*")
         data = client_socket.recv(50*1024)
         buffer = buffer + data
@@ -254,12 +277,12 @@ def main():
             print("RECEIVED : ", buffer)
             print(100*"~")
             packet, host, port, error = validate(buffer)
-            if error != "0":
+            #if error != "0":
                 #print("~~~~~~~~~~~~~~ERROR~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-                error_response(error, client_socket, client_address)
-            else:
-                #print("TEST")
-                ok_response(packet, host, port, client_socket)
+                #error_response(error, client_socket, client_address)
+            #else:
+            #print("TEST")
+            ok_response(packet, host, port, client_socket)
             buffer = b''
             print("\n2************************MAIN**********************************\n")
 
@@ -278,5 +301,5 @@ if __name__ == "__main__":
     # that gives birth to a socket per each connecting client.
     server_socket.listen(100)
     print("Waiting for clients...")
-
+   
     main()
