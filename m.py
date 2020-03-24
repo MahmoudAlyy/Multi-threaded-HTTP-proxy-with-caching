@@ -1,12 +1,17 @@
 import socket
 import re
+import threading
 """
 GET /hypertext/WWW/TheProject.html HTTP/1.0
 HOST: http://info.cern.ch
 
+GET http://info.cern.ch:80/hypertext/WWW/TheProject.html HTTP/1.1
+Host: 
+
+
 
 GET / HTTP/1.1
-Host: www.google.com
+Host: www.google.com:80
 
 GET www.google.com/ HTTP/1.1
 Host: 
@@ -113,9 +118,18 @@ A client MUST include a Host header field in all HTTP/1.1 request
    field.
 """
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`
+#TODO
+#add validation of website 
+# make error message printssssssssssssssssssss
 # my error stuff works (appears on webpage) but not on valid stuff maybe need to do multitaksing
+# valideate port in host
+"""
+After the response from the remote server is received, the proxy should send the response message (as-is) to the client via the appropriate socket.
+ Once the transaction is complete, the proxy should close the connection to the client. Note: the proxy should terminate the connection to the remote
+ server once the response has been fully received. For HTTP 1.0, the remote server will terminate the connection once the transaction is complete.
+"""
 
+pl = 100 #printing length for debugging
 
 def validate(buffer):
 
@@ -130,86 +144,62 @@ def validate(buffer):
     try:
         method, path, version = request_line.split()
     except:
-        #print("ERORR format enterd is worng")
-        return None, None, None, "400 Bad Request"
+        return None, None, None, "400 Bad Request 133"
 
-    # #TODO want to seprate them so we can see both error messages
-    # if not (method == "GET" and version == "HTTP/1.1"):
-    #     #print( "Not Implemented (501) method or version")
-    #     return None, None, None, "501 Not Implemented"
+    if method != "GET"  or not( re.match(r'http/',version.lower()) ):
+        return None, None, None, "501 Not Implemented"
 
-    #print(path)
+    port = 80       # set default port
+
     ### if full path is provided will split to relative URL + Host header
-    if path[0] != "/" and method == "GET":
+    if path[0] != "/":
         x = re.match(r'(https?:\/\/)?(.+?)(:[0-9]*)?(\/.*)', path)
-        #2 host name, 3 prot number, 4 relative path
-
-        # not used for now
-        #x = re.match(r'(https:\/\/)?(http:\/\/)?(.+?)(:[0-9]*)?(\/.*)', path)
-        # 1 https , 2 http , 3 host name , 4 port number , 5 relative path
+        #2 host name, 3 port number, 4 relative path
 
         if x.group(2):
             host_name = x.group(2)
             host_header = host_name
-        port = 80  # set default port
         if x.group(3):
             port = x.group(3)[1:]
             host_header = host_name + x.group(3)
 
         relative_url = x.group(4)
 
-    ### FOR COONECT?b'CONNECT
-    if path[0] != "/" and method == "CONNECT":
-        x = re.match(r'(https?:\/\/)?(.+?)(:[0-9]*)', path)
-        #2 host name, 3 prot number, 4 relative path
-
-        # not used for now
-        #x = re.match(r'(https:\/\/)?(http:\/\/)?(.+?)(:[0-9]*)?(\/.*)', path)
-        # 1 https , 2 http , 3 host name , 4 port number , 5 relative path
-
-        if x.group(2):
-            host_name = x.group(2)
-            host_header = host_name
-        port = 80  # set default port
-        if x.group(3):
-            port = x.group(3)[1:]
-            host_header = host_name + x.group(3)
-
-        #relative_url = x.group(4)
-
-
         ### see if request header was provided if yes remove it
         for item in request_headers:
-            if item.find("Host:") != -1:
+            if item.lower().find("host:") != -1:
                 request_headers.remove(item)
                 break
 
         ### add the host header
         host_header = "Host: "+host_header
         request_headers.append(host_header)
-        if method == "GET":
-            path = relative_url
+        path = relative_url
 
     ### if realtive url is provided then there must exist a host header
     else:
         host_header_flag = False
         for item in request_headers:
-            if item.find("Host:") != -1:
+            if item.lower().find("host:") != -1:
+                host_name = item[6:]
+                ### try to extract port number if provided
+                try:
+                    x = re.match(r'(.*:)([0-9]*)?',host_name)
+                    host_name = x.group(1)[0:-1]
+                    port = x.group(2)
+                except:
+                    pass
                 host_header_flag = True
                 break
         if not host_header_flag:
-            #print("bad request 400 missing host name")
-            return None, None, None, "400 Bad Request"
+            print("400 Bad Request, Host header not provided")
+            return None, None, None, "400 Bad Request, Host header not provided"
 
-    ### Validate request header
     ### check if headers are  properly formatted
     for item in request_headers:
         if not (re.match(r'.*\: .*', item)):
-            #print("400 header not properly formatted")
-            return None, None, None, "400 Bad Request"
-
-#    print(method,path,version)
-#    print(request_headers)
+            print("400 header not properly formatted")
+            return None, None, None, "400 Bad Request, Header Not properly formatted"
 
     space = b' '
     crlf = b'\r\n'
@@ -232,59 +222,68 @@ def error_response(error_code, client_socket, client_address):
     <p>{error_code}.<br />
     </p>
     </body></html>"""
-    #TODO add content lenght later butw will try without it for naw
 
     size = str(len(html.encode()))
     crlf = b'\r\n'
 
-    error_msg = b'HTTP/1.1 ' + error_code.encode() + crlf + b'Content-Type: text/html; charset=UTF-8' + crlf + b'Content-Length: '+size.encode() + crlf + crlf
+    error_msg = b'HTTP/1.0 ' + error_code.encode() + crlf + b'Content-Type: text/html; charset=UTF-8' + \
+        crlf + b'Content-Length: '+size.encode() + crlf + crlf
 
     error_msg = error_msg + html.encode() + b'\n'
-    print(error_msg)
-    
 
-    ### TESTTTTTTTTTTTTT
-    by = b'HTTP/1.1 404 Not Found\r\nContent-Type: text/html; charset=UTF-8\r\nReferrer-Policy: no-referrer\r\nContent-Length: 1567\r\nDate: Fri, 20 Mar 2020 15:34:45 GMT\r\n\r\n<!DOCTYPE html>\n<html lang=en>\n  <meta charset=utf-8>\n  <meta name=viewport content="initial-scale=1, minimum-scale=1, width=device-width">\n  <title>Error 404 (Not Found)!!1</title>\n  <style>\n    *{margin:0;padding:0}html,code{font:15px/22px arial,sans-serif}html{background:#fff;color:#222;padding:15px}body{margin:7% auto 0;max-width:390px;min-height:180px;padding:30px 0 15px}* > body{background:url(//www.google.com/images/errors/robot.png) 100% 5px no-repeat;padding-right:205px}p{margin:11px 0 22px;overflow:hidden}ins{color:#777;text-decoration:none}a img{border:0}@media screen and (max-width:772px){body{background:none;margin-top:0;max-width:none;padding-right:0}}#logo{background:url(//www.google.com/images/branding/googlelogo/1x/googlelogo_color_150x54dp.png) no-repeat;margin-left:-5px}@media only screen and (min-resolution:192dpi){#logo{background:url(//www.google.com/images/branding/googlelogo/2x/googlelogo_color_150x54dp.png) no-repeat 0% 0%/100% 100%;-moz-border-image:url(//www.google.com/images/branding/googlelogo/2x/googlelogo_color_150x54dp.png) 0}}@media only screen and (-webkit-min-device-pixel-ratio:2){#logo{background:url(//www.google.com/images/branding/googlelogo/2x/googlelogo_color_150x54dp.png) no-repeat;-webkit-background-size:100% 100%}}#logo{display:inline-block;height:54px;width:150px}\n  </style>\n  <a href=//www.google.com/><span id=logo aria-label=Google></span></a>\n  <p><b>404.</b> <ins>That\xe2\x80\x99s an error.</ins>\n  <p>The requested URL <code>/dsadas</code> was not found on this server.  <ins>That\xe2\x80\x99s all we know.</ins>\n'
-    #client_socket.send(by)
-
+    print(100*"~")
+    print("PROXY ERROR RESPONSE BACK TO ", client_address," : ", error_code)
     client_socket.send(error_msg)
     return
 
 
-def ok_response(packet, host, port, client_socket):
-     print(packet,host,port)
+def ok_response(packet, host, port, client_socket,client_address):
+     #print(100*"~")
+     print("SENDING REQUEST OF ",client_address," : ",packet[0:pl])
      s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
      s.connect((host, port))
      s.sendall(packet)
-     response = s.recv(6400)
+     response = s.recv(10000)
      s.close()
-     print("RESPONSE : ", response)
+     #print(100*"~")
+     print("RESPONSE BACK TO ",client_address," : ", response[0:pl])
      client_socket.sendall(response)
      return
 
 
-def main():
+def main(client_socket, client_address):
 
-    print("1************************MAIN**********************************\n")
+    #print(50*"*","START",50*"*","\n")
+    #print("\n\n")
     buffer = b''
+    print("Client : ", client_address, " HAS BEEN ACCEPTED")
     while True:
-        client_socket, client_address = server_socket.accept()
-        print("Client : ",client_address, " has arrived")
-        #print("*IN WHILE*")
         data = client_socket.recv(50*1024)
         buffer = buffer + data
         if buffer.find(b'\r\n\r\n') > 0:
-            print("RECEIVED : ", buffer)
-            print(100*"~")
+            print("RECEIVED FROM ",client_address," : ", buffer[0:pl])
             packet, host, port, error = validate(buffer)
-            #if error != "0":
-                #print("~~~~~~~~~~~~~~ERROR~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-                #error_response(error, client_socket, client_address)
-            #else:
-            #print("TEST")
-            ok_response(packet, host, port, client_socket)
+
+            if error != "0":
+                error_response(error, client_socket, client_address)
+            else:
+                ok_response(packet, host, port, client_socket,client_address)
             buffer = b''
-            print("\n2************************MAIN**********************************\n")
+            #print("\n",50*"*", "END", 50*"*","\n")
+            print("\n")
+            client_socket.close()
+            break
+
+
+def acceptor():
+    temp = 0
+    while True:
+        client_socket, client_address = server_socket.accept()
+        x = threading.Thread(target=main, args=(client_socket,client_address))
+        x.start()
+
+
+
 
 
 if __name__ == "__main__":
@@ -297,9 +296,7 @@ if __name__ == "__main__":
     # Set the server address
     server_socket.bind(("127.0.0.21", 2121))
 
-    # Start listening, this makes the socket a "welcome" socket
-    # that gives birth to a socket per each connecting client.
     server_socket.listen(100)
     print("Waiting for clients...")
-   
-    main()
+
+    acceptor()

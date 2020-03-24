@@ -1,22 +1,9 @@
-import re
-txt ="http://www.princeton.edu/dsadasd"
-text = "www.nowhere123.com:30/docs/index.html"
-f = "www.google.com:443"
-#x = re.match(r'https?:\/\/(.+?)(\/.*)', text)
-#x = re.match(r'(https?:\/\/)?(.+?)(\/.*)', text)
+try:
+    x = re.match(r'(.*:)([0-9]*)?')
+    host_name = x.group(1)[0:-1]
+    port = x.group(2)
+except:
 
-x = re.match(r'(https?:\/\/)?(.+?)(:[0-9]*)?(\/.*)?', text)
-
-
-
-#(https:\/\/)?(http:\/\/)?(.+?)(:[0-9]*)?(\/.*)
-# 1 https , 2 http , 3 host name , 4 port number , 5 relative path
-
-# 2 host name, 3 prot number, 4 relative path
-#Host: myhost.com:3244
-print(x)
-
-print(x.group(2))
-print(x.group(4))
-print(x.group(3)[1:])
-
+    pass
+print(host_name)
+print(port)
