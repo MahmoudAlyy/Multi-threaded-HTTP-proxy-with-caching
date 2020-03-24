@@ -119,7 +119,9 @@ A client MUST include a Host header field in all HTTP/1.1 request
 """
 
 #TODO
-#add validation of website 
+# read me add working links use info.cern a7sn
+# add validation of website 
+# caching
 # make error message printssssssssssssssssssss
 # my error stuff works (appears on webpage) but not on valid stuff maybe need to do multitaksing
 # valideate port in host
