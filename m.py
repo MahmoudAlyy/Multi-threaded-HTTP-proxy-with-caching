@@ -134,7 +134,7 @@ After the response from the remote server is received, the proxy should send the
  server once the response has been fully received. For HTTP 1.0, the remote server will terminate the connection once the transaction is complete.
 """
 
-pl = 100 #printing length for debugging
+pl = 80 #printing length for debugging
 
 def validate(buffer):
 
@@ -236,7 +236,7 @@ def error_response(error_code, client_socket, client_address):
 
     error_msg = error_msg + html.encode() + b'\n'
 
-    print("PROXY ERROR RESPONSE BACK TO ", client_address," : ", error_code,"\n")
+    print("PROXY RESPONDED WITH AN ERROR TO ", client_address," : ", error_code,"\n")
     client_socket.send(error_msg)
     return
 
@@ -280,8 +280,27 @@ def ok_response(packet, host, port, client_socket,client_address):
     s.close()
     print("RESPONSE BACK TO ",client_address," : ", response[0:pl],"\n")
     client_socket.sendall(response)
-    return
+    return response
 
+
+cache_map = {}
+
+
+### if date is in their dont store in cache
+def use_cache(request,client_socket):
+    if request in cache_map.keys():
+        response = cache_map[request]
+        print("\n[From Cache] RESPONSE BACK TO ",client_socket.getpeername()," : ", response[0:pl],"\n")
+        client_socket.sendall(response)
+        return 1
+    else :
+        return 0
+
+
+def store_cache(request, response):
+    #print(30*"~","STORED IN CACHE\n")
+    cache_map[request] = response
+    return
 
 def main(client_socket, client_address):
 
@@ -289,15 +308,19 @@ def main(client_socket, client_address):
     while True:
         data = client_socket.recv(50*1024)
         buffer = buffer + data
-        if buffer.find(b'\r\n\r\n') > 0:
+        if buffer.find(b'\r\n\r\n') > 0 :
             print("RECEIVED FROM ",client_address," : ", buffer[0:pl])
             packet, host, port, error = validate(buffer)
 
-            if error != "0":
+            if error != "0" :
                 error_response(error, client_socket, client_address)
-            else:
-                ok_response(packet, host, port, client_socket,client_address)
+
+            elif use_cache(packet,client_socket) == 0  :
+                response = ok_response(packet, host, port, client_socket,client_address)
+                store_cache(packet,response)
+
             client_socket.close()
+            #print(cache_map)
             break
 
 
