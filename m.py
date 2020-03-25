@@ -1,6 +1,7 @@
 import socket
 import re
 import threading
+import time
 """
 GET /hypertext/WWW/TheProject.html HTTP/1.0
 HOST: http://info.cern.ch
@@ -125,6 +126,8 @@ A client MUST include a Host header field in all HTTP/1.1 request
 # make error message printssssssssssssssssssss
 # my error stuff works (appears on webpage) but not on valid stuff maybe need to do multitaksing
 # valideate port in host
+# try an address u know wont reutnr stuff
+# put image in readme
 """
 After the response from the remote server is received, the proxy should send the response message (as-is) to the client via the appropriate socket.
  Once the transaction is complete, the proxy should close the connection to the client. Note: the proxy should terminate the connection to the remote
@@ -175,7 +178,7 @@ def validate(buffer):
 
         ### add the host header
         host_header = "Host: "+host_header
-        request_headers.append(host_header)
+        request_headers.insert(0,host_header)
         path = relative_url
 
     ### if realtive url is provided then there must exist a host header
@@ -233,32 +236,56 @@ def error_response(error_code, client_socket, client_address):
 
     error_msg = error_msg + html.encode() + b'\n'
 
-    print(100*"~")
-    print("PROXY ERROR RESPONSE BACK TO ", client_address," : ", error_code)
+    print("PROXY ERROR RESPONSE BACK TO ", client_address," : ", error_code,"\n")
     client_socket.send(error_msg)
     return
 
 
+def my_recv(s):
+    
+    s.setblocking(0)
+    s.settimeout(0.5)
+    timeout = 0.5
+    temp = b''
+    response = b''
+
+    begin = time.time()
+
+    while True:
+        if len(response) != 0 and time.time() - begin > timeout:
+            break
+
+        elif time.time() - begin > timeout*2:
+            break
+
+        try:    
+            temp = s.recv(10000)
+            if len(temp) != 0:
+                response = response + temp
+                begin = time.time()
+        except:    
+            pass
+
+    return response
+
+
 def ok_response(packet, host, port, client_socket,client_address):
-     #print(100*"~")
-     print("SENDING REQUEST OF ",client_address," : ",packet[0:pl])
-     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-     s.connect((host, port))
-     s.sendall(packet)
-     response = s.recv(10000)
-     s.close()
-     #print(100*"~")
-     print("RESPONSE BACK TO ",client_address," : ", response[0:pl])
-     client_socket.sendall(response)
-     return
+
+    print("SENDING REQUEST OF ",client_address," : ",packet[0:pl],"\n")
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((host, port))
+    s.sendall(packet)
+    
+    response = my_recv(s)
+    s.close()
+    print("RESPONSE BACK TO ",client_address," : ", response[0:pl],"\n")
+    client_socket.sendall(response)
+    return
 
 
 def main(client_socket, client_address):
 
-    #print(50*"*","START",50*"*","\n")
-    #print("\n\n")
     buffer = b''
-    print("Client : ", client_address, " HAS BEEN ACCEPTED")
     while True:
         data = client_socket.recv(50*1024)
         buffer = buffer + data
@@ -270,9 +297,6 @@ def main(client_socket, client_address):
                 error_response(error, client_socket, client_address)
             else:
                 ok_response(packet, host, port, client_socket,client_address)
-            buffer = b''
-            #print("\n",50*"*", "END", 50*"*","\n")
-            print("\n")
             client_socket.close()
             break
 
@@ -283,9 +307,6 @@ def acceptor():
         client_socket, client_address = server_socket.accept()
         x = threading.Thread(target=main, args=(client_socket,client_address))
         x.start()
-
-
-
 
 
 if __name__ == "__main__":
@@ -299,6 +320,6 @@ if __name__ == "__main__":
     server_socket.bind(("127.0.0.21", 2121))
 
     server_socket.listen(100)
-    print("Waiting for clients...")
+    print("Waiting for clients...\n")
 
     acceptor()
