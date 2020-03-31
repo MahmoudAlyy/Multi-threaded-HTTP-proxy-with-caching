@@ -6,9 +6,6 @@ Once the proxy has parsed the URL, it can make a connection to the requested hos
 Accept from client:  
 GET www.google.com/ HTTP/1.1  
 Or   
-GET www.google.com/ HTTP/1.1    
-Host:  
-or  
 GET / HTTP/1.1  
 Host: www.google.com  
 
